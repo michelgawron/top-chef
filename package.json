@@ -1,0 +1,27 @@
+{
+  "name": "top-chef",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "description": "> Eat well and cheaper than usually",
+  "main": "server.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/michelgawron/top-chef.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/michelgawron/top-chef/issues"
+  },
+  "homepage": "https://github.com/michelgawron/top-chef#readme",
+  "dependencies": {
+    "express": "latest",
+    "phantom": "latest",
+    "x-ray": "latest"
+  }
+}
