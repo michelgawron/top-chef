@@ -21,7 +21,6 @@
   "homepage": "https://github.com/michelgawron/top-chef#readme",
   "dependencies": {
     "express": "latest",
-    "phantom": "latest",
     "x-ray": "latest"
   }
 }

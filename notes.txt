@@ -1,0 +1,6 @@
+Restaurants étoilés:
+    - *: class="icon-cotation1etoile"
+    - **: class="icon-cotation2etoiles"
+    - ***: class="icon-cotation3etoiles"
+    - Assiette michelin: class="icon-cotationAssiette"
+    - Bonhomme michelin: class="icon-cotationBibGourmand" (assiette avec un bon rapport q/p)
