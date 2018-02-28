@@ -5,15 +5,18 @@
 let express = require('express');
 let michelin = require("./scripts/michelin.js");
 
-michelin.getRestaurantsXray("https://restaurant.michelin.fr/restaurants/france");
-
 let app = express();
 
 /**
  * Basic test function
  */
-app.use('/', function(req, res, next){
+app.use('/', async function (req, res, next) {
     console.log("A connection has been recorded");
+    let myurl = "https://restaurant.michelin.fr/restaurants/france";
+    michelin.getRestaurants(myurl)
+        .then(x => {
+            console.log(x[3500])
+        });
 });
 
 app.listen(3000);

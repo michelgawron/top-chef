@@ -1,103 +1,154 @@
 /**
  * Created by M2469215 on 16/02/2018.
- * This module is mainly used to get restaurants from hte michelin website
+ * This module is used to get restaurants from the michelin website
  */
 var exports = module.exports = {};
-let phantom = require('phantom');
-let Xray = require('x-ray');
-let x = Xray({
-    filters: {
-        removeSpace: /**
-         * Function used in order to remove useless spaces we get when scraping the website
-         * @param value
-         * @returns {string}
-         */
-            function (value) {
-            // Replacing \n characters
-            value = value.replace("\n", "");
 
-            // Removing head spaces
-            while (value.charAt(0) === " ") {
-                value = value.substring(1);
-            }
+let cheerio = require('cheerio');
+let request = require('request');
 
-            // Reversing the string
-            value = value.split("").reverse().join("");
-
-            // Removing tail spaces
-            while (value.charAt(0) === " ") {
-                value = value.substring(1);
-            }
-            return value.split("").reverse().join("");
-        }
-    }
-}).timeout(0);
+//TODO Add function to help format our urls
 
 /**
- * Creating the request for our scraping according to the parameters given by the user
- * @param city
- * @param foodType
- * @param starred
- * @returns {string}
- */
-let createURLQuery = function (city, foodType, starred) {
-    return 'https://restaurant.michelin.fr/restaurants/' + city + "/"
-        + foodType + "/"
-        + ((starred) ? "restaurants_michelin" : "");
-};
-
-/**
- * This method goes on the michelin website and scrapes all restaurants
- * Let's get the restaurants name, url on michelin, stars,
+ * Get restaurants from michelin site
  * @param url
  */
-let getRestaurantsXray = function (url) {
-    getNumberPages(url, function (numPages) {
-        var tabInfos = [];
-        var tabUrls = [];
-
-        // First pass to get the results section
-        x(url, '.poi-search-result', ['.ds-1col@html'])(function (err, content) {
-            // Second pass on each element in order to get only relevant information
-            console.log(url);
-            try {
-                for (let restaurant of content) {
-                    // Getting title, food type, price and michelin url
-                    x(restaurant, {
-                        title: '.poi_card-display-title | removeSpace',
-                        foodType: '.poi_card-display-cuisines | removeSpace',
-                        price: '.poi_card-display-price | removeSpace',
-                        michelinUrl: '.poi-card-link@href'
-                    })(function (err, attributes) {
-                        tabInfos.push(attributes);
-                    });
+async function getRestaurants(url) {
+    return new Promise(function (resolve, reject) {
+        getNumberPages(url)
+            .then(pages => {
+                /*
+                 * Controls the pages value and define a default one if we got an error or no more than a single page
+                 */
+                if (pages === "null") {
+                    pages = 1;
                 }
-                console.log(tabInfos.length);
-            }
-            catch (error) {
-                console.log(content);
-                console.log(err);
-            }
-        }).paginate('.mr-pager-item.last a@href').limit(10).then(
-            function(res){
-                console.log(res.length)
-            }
-        );
-        console.log(tabInfos.length);
-    })
-};
+                return pages;
+            })
+            .then(pages => {
+                /*
+                 * Creates all the urls we need to scrape (every page from the first to the last one for our query) from
+                 * a base one
+                 */
+                let myurl = "https://restaurant.michelin.fr/search-restaurants?" +
+                    "&cooking_type=&gm_selection=&stars=&bib_gourmand=" +
+                    "&piecette=&michelin_plate=&services=&ambiance=" +
+                    "&booking_activated=&min_price=&max_price=" +
+                    "&number_of_offers=&prev_localisation=1424&latitude=" +
+                    "&longitude=&bbox_ne_lat=&bbox_ne_lon=&bbox_sw_lat=&bbox_sw_lon=" +
+                    "&page_number=PAGENUMBERHERE&op=Rechercher&js=true";
+                let tabUrls = [];
+
+                for (let i = 1; i <= pages; i++) {
+                    tabUrls.push(myurl.replace("PAGENUMBERHERE", i));
+                }
+
+                return tabUrls;
+            })
+            .then(tabUrls => {
+                /*
+                 * Now that we got all the urls we need to scrape, we are going to create a promise for every sub-batch
+                 * In order to scrape every url asynchronously - each batch contains 10 urls
+                 * Returns a list of promises
+                 * Each promise is going to return a single list of restaurants that it has scraped
+                 */
+                let tabPromises = [];
+
+                for (let i = 0; i < (tabUrls.length) / 10; i++) {
+                    // Creating a sub-batch
+                    let subset = tabUrls.slice(i * 10, (i + 1) * 10);
+
+                    // Creating a promise that will process a batch of urls and return its restaurants
+                    let promise = processBatch(subset).then(html => {
+                        console.log("Pushing batch number " + i);
+                        let tabResult = [];
+
+                        // Getting relevant information upon completion of the request and pushing it to a result array
+                        for (let i = 0; i < html.length; i++) {
+                            let json_object = JSON.parse(html[i])[1]["settings"]["search_result_markers"];
+
+                            // Going through all the found restaurants
+                            for (let key in json_object) {
+                                if (json_object.hasOwnProperty(key)) {
+                                    tabResult.push(json_object[key]['title']);
+                                }
+                            }
+                        }
+                        return tabResult;
+                    });
+                    tabPromises.push(promise);
+                }
+                return tabPromises;
+            })
+            .then(tabPromises => {
+                /*
+                 * The last part of our promise chain executes all the previously created promises
+                 * Our module waits for the completion of all our requests, concatenate the lists of restaurants
+                 * And call the completion function
+                 */
+                let tabResult = [];
+                Promise.all(tabPromises).then((resultsBatches) => {
+                    let results = Array.prototype.concat.apply([], resultsBatches);
+                    resolve(results);
+                });
+            });
+    });
+}
 
 /**
- * Function used to get the number of pages on a michelin webpage
- * @param url
- * @param callback
+ * Process a small batch of data synchronously (one url at a time)
+ * @param batch
+ * @returns {Promise<Array>}
  */
-let getNumberPages = function (url, callback) {
-    // We get the list of pages, and get the number before the last one
-    x(url, '.item-list-first', ['.mr-pager-item'])(function (err, content) {
-        callback(content[content.length - 2]);
+function processBatch(batch) {
+    return new Promise(async (resolve, reject) => {
+        let resultBatch = [];
+        for (let i = 0; i < batch.length; i++) {
+            await processURL(batch[i]).then(x => resultBatch.push(x));
+        }
+        resolve(resultBatch);
+    });
+}
+
+
+/**
+ * Process a single url and retrieve html code
+ * @param url
+ * @returns {Promise<any>}
+ */
+async function processURL(url) {
+    return new Promise(function (resolve, reject) {
+        request(url, function (error, response, html) {
+            if (!error) {
+                resolve(html);
+            }
+            else {
+                console.log("ERROR")
+            }
+        })
+    });
+}
+
+/**
+ * Use cheerio to get the number of pages in our
+ * @param url
+ */
+let getNumberPages = async function (url) {
+    return new Promise(function (resolve, reject) {
+        request(url, function (error, response, html) {
+            // If we get a response without error
+            if (!error && response.statusCode === 200) {
+                $ = cheerio.load(html);
+
+                /* Getting the last page for this request as follows:
+                 * We select the last item of the pagination list, and then get to the previous one
+                 * which represents the value of the last page
+                 */
+                console.log("test");
+                resolve($('.mr-pager-first-level-links').children('.last').prev().text());
+            }
+        })
     })
 };
 
-exports.getRestaurantsXray = getRestaurantsXray;
-exports.createURLQuery = createURLQuery;
+exports.getRestaurants = getRestaurants;

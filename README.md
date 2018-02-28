@@ -26,171 +26,89 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Introduction
+# Introduction
 
-Each year, Michelin publish the Michelin Red Guide which awards Michelin stars to some restaurants.
+This document and the code on this repository is not intended to be reused for commercial purposes. 
+It is an overview and a solution found for a workshop given as part of a school course.
 
-The criteria for the stars are:
+# Investigation - [Michelin](https://restaurant.michelin.fr/ "Michelin Restaurants Website") website
 
-1. Michelin star **"A very good restaurant in its category"** (Une très bonne table dans sa catégorie)
-2. Michelin stars: **"Excellent cooking, worth a detour"** (Table excellente, mérite un détour)
-3. Michelin stars: **"Exceptional cuisine, worth a special journey"** (Une des meilleures tables, vaut le voyage)
+After a bit of exploration on the [michelin](https://restaurant.michelin.fr/ "Michelin Restaurants Website") website, 
+we could see that it is quite easy to scrape, as there is no dynamic content generated. 
+Then, as we got only a couple of static pages to scrape, we explored a few possibilities to do so.
+<br><br>
+Node.js is a language that uses callbacks and asynchronous calls in order to execute tasks. Let's use
+those properties to make our scraping module as efficient as it can be: the aim of this module is
+to asynchronously hit several pages in order to get a list of restaurants. 
 
-Ther average price for a starred restaurant could start from 50€ up to more than 400€.
+### PhantomJS - How to scrape website with a whole army
 
-Thanks the [LaFourchette](https://www.lafourchette.com), you can book a restaurant at the best price and get exclusive offers and discount up to 50%.
+The first tool we thought could be useful to make such a scraping was PhantomJS.
+As we have already used this headless browser, we first tried to scrape a single page using this tool.
+The result was good as we managed to extract valuable data from the page.<br><br>
+However, a headless browser is a heavy tool, and it needed one or two seconds to actually give a result back.
+As said on the introduction, there is no dynamic content to process: using a headless browser is then a bit of an 
+overkill for our task.
 
-![michelin](./img/michelin.png)
+### Requests + cheerio - A light way to scrape
 
-![lafourchette](./img/lafourchette.png)
+After a bit of testing with phantomJS, we found out that using requests with cheerio would be the easiest and lightest 
+way to make our scraping. We tried making a request on a single page and it worked like a charm.
+<br><br>
 
-## Objective - Workshop in 1 sentence
+#### Scraping limits
 
-**Get the current deal for a France located Michelin starred restaurants.**
+However, problems appeared when we tried scraping the whole website:
+we figured out that [michelin](https://restaurant.michelin.fr/ "Michelin Restaurants Website") 
+restaurants website blocks you if you send too much requests at a time.
+<br><br>
+The limit seems to be around a hundred requests on less than a few seconds: after the hundredth request, 
+their server keeps sending timedout errors. So, we needed to find a way to slow down those requests.
+<br><br>
+We first tried to run my requests one at a time. This solution worked, but the processing time was quite too long 
+as the server needed two minutes to make the requests and receive their results. The good news here was that
+the server accepts our requests if we do not make too much of it.
+<br><br>
+A way to make those requests without getting blocked and in a reasonable time is to process the urls by small batches. 
+Each batch needs to be processed asynchronously which would allow us to work on a few batch at a time.
+Inside every batch, we are going to make synchronous calls to our urls to let a time gap between requests.
+<br><br>
 
-## How to do that?
+# Investigation - [lafourchette](https://www.lafourchette.com "La Fourchette Website")
 
-By creating a link between [restaurant.michelin.fr](https://restaurant.michelin.fr/), [lafourchette.com](https://www.lafourchette.com) and the end-user.
+One thing that we learned while in class with Yassine was that 
+[lafourchette](https://www.lafourchette.com "La Fourchette Website") uses a module protecting the website against
+scraping. However, it can bne easily tricked, but we won't give the details about how to do so.
 
-### Stack
+Our goal on [lafourchette](https://www.lafourchette.com "La Fourchette Website")
+ is to check if the restaurants we scrape from michelin have some deals we can actually apply.
 
-```
-Node.js + React + Material Design (mdl, bootstrap, foundation...) + ES6 [+ docker + redis ...]
-```
+Let's then separate our research.
 
-## Just tell me what to do
+First of all, we are going to check how a restaurant with a single restaurant is display when we search it by name.
+Then, we are going to try and find a restaurant giving us several results (and ideally several pages) in order to apply
+an algorithm to select the one we actually found on michelin.
 
-1. Fork the project via `github`
-1. Clone your forked repository project `https://github.com/YOUR_USERNAME/top-chef`
+### Single restaurant - a class affair
 
-```sh
-❯ cd /path/to/workspace
-❯ git clone git@github.com:YOUR_USERNAME/top-chef.git
-```
+### Multiple results - hide and seek
 
 
-1. Follow the steps
-1. commit your different modifications:
 
-```sh
-❯ cd /path/to/workspace/top-chef
-❯ git add -A && git commit -m "feat(restaurants): fetch list of starred restautants"
-```
+# Solution
 
-([why following a commit message convention?](https://github.com/angular/angular.js/blob/master/DEVELOPERS.md#commits))
+## Michelin
 
-1. Don't forget to push before the end of the workshop **and** before the end of the 2 dedicated sessions
+First of all, as we figured it out in the first part of my investigation, it was not possible to make a scraping module 
+that processes all urls asynchronously as the website blocks excessive requests.
 
-```sh
-❯ git push origin master
-```
+Then in order to scrape this website, we decided to create batches of 10 urls each. Batches will be processed
+asynchronously. Inside each batch, we call each url synchronously in order not to send too many requests at once.
 
-**Note**: if you catch an error about authentication, [add your ssh to your github profile](https://help.github.com/articles/connecting-to-github-with-ssh/).
+In node.js, for loops are synchronous. However, if a call to an async function is made inside the loop, it does not block
+its execution. This means that calling a promise inside a for statement does not wait for it to be completed.
+Thus, we had to come up with an ingenious way to call our functions to be ran against batches asynchronously while
+making call to the website in a synchronous way.
 
-1. If you need some helps on git commands, read [git - the simple guide](http://rogerdudler.github.io/git-guide/)
-
-## Examples of steps to do
-
-### Investigation
-
-#### Michelin Restaurant
-
-1. How it works https://restaurant.michelin.fr
-1. What are the given properties for a starred restaurant: name, adress, town, stars, chef... ?
-1. ...
-
-Some things to do:
-
-1. Browse the website
-1. define the JSON schema for a restaurant
-1. ...
-
-Example of Restaurant: https://restaurant.michelin.fr/2abl39j/le-chiberta-paris-08
-
-#### Deals from LaFourchette
-
-1. How it works https://www.lafourchette.com
-1. What are the properties that we need to provide to lafourchette.com to get a deal ?
-1. How to identify a deal on the page ?
-1. ...
-
-Some things to do:
-
-1. Browse the website
-1. Check how that you can get the deal: api etc.... (check network activity)
-1. define the properties required to get a deal
-1. define the JSON schema for a deal
-1. ...
-
-Example of a deal: https://www.lafourchette.com/restaurant/le-chiberta-stephane-laruelle-guy-savoy/2828
-
-#### The web application
-
-Some things to do:
-
-1. How to create a link between the starred restaurant and lafourchette?
-
-### Server-side with Node.js
-
-#### require('michelin')
-
-Create a module called `michelin` that return the list of restaurant
-
-```js
-const michelin = require('michelin');
-
-console.log(michelin.get());
-```
-
-Some things to do:
-
-1. scrape list of France located starred restaurants
-1. store the list into JSON file, nosql database (like redis, mongodb...)
-1. create a node module that return the list
-
-#### require('lafourchette')
-
-Create a module called `lafourchette` that return the available deal for a given restaurant
-
-```js
-const lafourchette = require('lafourchette');
-...
-const restaurant = {...};
-
-
-console.log(lafourchette.getDeal(restaurant));
-```
-
-Some things to do:
-
-1. create the calls (api, http) to get the restaurant page
-1. get the deal (by scraping or decoding api response)
-1. return the deal
-
-### Client-side with React
-
-MVP to do:
-
-1. **List France located starred restaurant and their current deals**
-
-Next features:
-
-2. Add filters:
-  * filtering by name
-  * sorting by stars
-3. Bonus: Display on a map only the starred restaurants with an active deal
-
-### Notification (bonus)
-
-Some things to do:
-
-1. Notify me (discord or slack) a new deal for any starred restaurant
-2. Monitor and notify a new deal for a given restaurant
-
-## Don't forget
-
-**Focus on codebase and UX/UI**
-
-## Licence
-
-[Uncopyrighted](http://zenhabits.net/uncopyright/)
+The trick we used to get this running is to create an array of promises. Everyone of them processes a single batch.
+Those promises call a function that runs on the batch, retrieves its urls and make an http request to retrieve its content.
