@@ -87,11 +87,15 @@ Let's then separate our research.
 
 First of all, we are going to check how a restaurant with a single restaurant is display when we search it by name.
 Then, we are going to try and find a restaurant giving us several results (and ideally several pages) in order to apply
-an algorithm to select the one we actually found on michelin.
+an algorithm to select the one we actually found on michelin. We are also going to loo, for restaurants
+that are not available on [lafourchette](https://www.lafourchette.com "La Fourchette Website"), 
+in order to get a bit of insight on the website behaviour in this case.
 
 ### Single restaurant - a class affair
 
 ### Multiple results - hide and seek
+
+### No result
 
 
 
