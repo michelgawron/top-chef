@@ -70,7 +70,11 @@ async function getRestaurants(url) {
                             // Going through all the found restaurants
                             for (let key in json_object) {
                                 if (json_object.hasOwnProperty(key)) {
-                                    tabResult.push(json_object[key]['title']);
+                                    // Pushing name of the restaurant and its url
+                                    tabResult.push({
+                                        "title": json_object[key]['title'],
+                                        "url": json_object[key]['content_url']
+                                    });
                                 }
                             }
                         }
@@ -140,7 +144,8 @@ let getNumberPages = async function (url) {
             if (!error && response.statusCode === 200) {
                 $ = cheerio.load(html);
 
-                /* Getting the last page for this request as follows:
+                /*
+                 * Getting the last page for this request as follows:
                  * We select the last item of the pagination list, and then get to the previous one
                  * which represents the value of the last page
                  */
