@@ -7,6 +7,12 @@ var exports = module.exports = {};
 let cheerio = require('cheerio');
 let request = require('request');
 
+let headers = {
+    'User-Agent':
+        '\\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.186 Safari/537.36\\"',
+    Cookie: '\\"has-js=1\\"'
+};
+
 //TODO Add function to help format our urls
 
 /**
@@ -31,7 +37,7 @@ async function getRestaurants(url) {
                  * a base one
                  */
                 let myurl = "https://restaurant.michelin.fr/search-restaurants?" +
-                    "&cooking_type=&gm_selection=&stars=&bib_gourmand=" +
+                    "&cooking_type=&gm_selection=&stars=1||2||3&bib_gourmand=" +
                     "&piecette=&michelin_plate=&services=&ambiance=" +
                     "&booking_activated=&min_price=&max_price=" +
                     "&number_of_offers=&prev_localisation=1424&latitude=" +
@@ -40,7 +46,7 @@ async function getRestaurants(url) {
                 let tabUrls = [];
 
                 for (let i = 1; i <= pages; i++) {
-                    tabUrls.push(myurl.replace("PAGENUMBERHERE", i));
+                    tabUrls.push(encodeURI(myurl.replace("PAGENUMBERHERE", i)));
                 }
 
                 return tabUrls;
@@ -53,13 +59,14 @@ async function getRestaurants(url) {
                  * Each promise is going to return a single list of restaurants that it has scraped
                  */
                 let tabPromises = [];
+                let nbUrls = 10;
 
-                for (let i = 0; i < (tabUrls.length) / 10; i++) {
+                for (let i = 0; i < (tabUrls.length) / nbUrls; i++) {
                     // Creating a sub-batch
-                    let subset = tabUrls.slice(i * 10, (i + 1) * 10);
+                    let subset = tabUrls.slice(i * nbUrls, (i + 1) * nbUrls);
 
                     // Creating a promise that will process a batch of urls and return its restaurants
-                    let promise = processBatch(subset).then(html => {
+                    let promise = processBatch(subset).then(async html => {
                         console.log("Pushing batch number " + i);
                         let tabResult = [];
 
@@ -70,7 +77,6 @@ async function getRestaurants(url) {
                             // Going through all the found restaurants
                             for (let key in json_object) {
                                 if (json_object.hasOwnProperty(key)) {
-                                    // Pushing name of the restaurant and its url
                                     tabResult.push({
                                         "title": json_object[key]['title'],
                                         "url": json_object[key]['content_url']
@@ -122,14 +128,15 @@ function processBatch(batch) {
  */
 async function processURL(url) {
     return new Promise(function (resolve, reject) {
-        request(url, function (error, response, html) {
-            if (!error) {
-                resolve(html);
+        request(url, {headers: headers}, function (error, response, html) {
+                if (!error) {
+                    resolve(html);
+                }
+                else {
+                    console.log(error)
+                }
             }
-            else {
-                console.log("ERROR")
-            }
-        })
+        )
     });
 }
 
