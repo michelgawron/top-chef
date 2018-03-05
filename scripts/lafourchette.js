@@ -174,7 +174,7 @@ function getElementsFromHTML(htmlPage) {
  */
 async function getFirstPage(dictRestaurant) {
     return new Promise(function (resolve, reject) {
-        let baseUrl = encodeURI("https://m.lafourchette.com/fr_FR/search?searchText=" + dictRestaurant["title"].toLowerCase());
+        let baseUrl = encodeURI("https://m.lafourchette.com/fr_FR/search?offer=1&searchText=" + dictRestaurant["title"].toLowerCase());
 
         // followRedirect = false in order not to follow 302 redirection (in case the restaurant was not found
         request(baseUrl, {headers: headersLaFourchette, followRedirect: false}, function (error, response, html) {

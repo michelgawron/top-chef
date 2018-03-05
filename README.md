@@ -6,23 +6,6 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Introduction](#introduction)
-- [Objective - Workshop in 1 sentence](#objective---workshop-in-1-sentence)
-- [How to do that?](#how-to-do-that)
-  - [Stack](#stack)
-- [Just tell me what to do](#just-tell-me-what-to-do)
-- [Examples of steps to do](#examples-of-steps-to-do)
-  - [Investigation](#investigation)
-    - [Michelin Restaurant](#michelin-restaurant)
-    - [Deals from LaFourchette](#deals-from-lafourchette)
-    - [The web application](#the-web-application)
-  - [Server-side with Node.js](#server-side-with-nodejs)
-    - [require('michelin')](#requiremichelin)
-    - [require('lafourchette')](#requirelafourchette)
-  - [Client-side with React](#client-side-with-react)
-  - [Notification (bonus)](#notification-bonus)
-- [Don't forget](#dont-forget)
-- [Licence](#licence)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -93,9 +76,17 @@ in order to get a bit of insight on the website behaviour in this case.
 
 ### Single restaurant - a class affair
 
+If we got only one result for a query, then we can simply select the right class in ordrer to retrieve an element's data
+
 ### Multiple results - hide and seek
 
+If we got several results for a search query, then we are going to compare the michelin postal code with the one
+on la fourchette: if we got a match then we can almost be sure that it is our restaurant
+
 ### No result
+
+When there is no result, the search page resolve with a 302 status code. We just have to pass a parameter to request
+in order not to follow redirection and to catch a page with a 302 status code to know that no result has been found.
 
 
 
@@ -116,3 +107,24 @@ making call to the website in a synchronous way.
 
 The trick we used to get this running is to create an array of promises. Everyone of them processes a single batch.
 Those promises call a function that runs on the batch, retrieves its urls and make an http request to retrieve its content.
+
+## La Fourchette
+
+We tried to make a simple promise based module. First of all, we are going to make a search query using a restaurant's
+name on la fourchette. Then, if we got only one result, we are going to select the element on the page.
+
+If we got several elements, a function will call michelin in order to retrieve the restaurant's postal code and then
+compare it with elements on the search page.
+
+If we got no element, then we are simply going to throw an error message
+
+### Scraping limit
+
+When we tried to execute our modules on a small subset, it seemed to work greatly and provide good results.
+However, upon switching on the whole dataset we noticed that we had a lot of rejected requests: this is probably due to
+a behaviour similar to michelin's website. Then, we have to process our data using small batches for this module too.
+
+But when testing our modules on a big part of the dataset, lafourchette blocked us. They probably use the datadome
+cookie parameter in order to count requests from one source, and block a user when he reaches a certain limit.
+
+But we found out that we could bypass it by switching to the mobile website - we just need to implement changes now.
