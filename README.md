@@ -129,3 +129,8 @@ cookie parameter in order to count requests from one source, and block a user wh
 
 We now use the mobile website in order to perform our scraping and it works like a charm.
 
+# How to run it
+
+For now, only the server side is running: but you cansee how many items are scraped from both sites.
+
+In order to launch our server, simply run `npm install` then `npm run start`

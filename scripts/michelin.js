@@ -155,7 +155,6 @@ let getNumberPages = async function (url) {
                  * We select the last item of the pagination list, and then get to the previous one
                  * which represents the value of the last page
                  */
-                console.log("test");
                 resolve($('.mr-pager-first-level-links').children('.last').prev().text());
             }
         })

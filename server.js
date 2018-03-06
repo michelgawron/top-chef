@@ -19,10 +19,10 @@ let myurl = "https://restaurant.michelin.fr/restaurants/france/";
 
 let restaurants = michelin.getRestaurants(myurl)
     .then(x => {
-        console.log(x.length);
+        console.log("Got " + x.length + " elements from michelin");
         lafourchette.processRestaurants(x)
             .then(y => {
-                console.log(y.length);
+                console.log("GOT " + y.length + " elements from lafourchette");
             });
     });
 
