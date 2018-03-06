@@ -127,4 +127,5 @@ a behaviour similar to michelin's website. Then, we have to process our data usi
 But when testing our modules on a big part of the dataset, lafourchette blocked us. They probably use the datadome
 cookie parameter in order to count requests from one source, and block a user when he reaches a certain limit.
 
-But we found out that we could bypass it by switching to the mobile website - we just need to implement changes now.
+We now use the mobile website in order to perform our scraping and it works like a charm.
+

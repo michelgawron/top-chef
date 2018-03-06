@@ -7,26 +7,33 @@ var exports = module.exports = {};
 let cheerio = require('cheerio');
 let request = require('request');
 
-let baseLFURL = "https://www.lafourchette.com";
+// Default base URL used to scrape lafourchette - api url returning json
+let baseLFURL = "https://m.lafourchette.com/api/restaurant/search?sort=QUALITY" +
+    "&offer=1" +
+    "&search_text=YOURSEARCHQUERYHERE" +
+    "&offset=YOUROFFSETHERE" +
+    "&origin_code_list[]=THEFORKMANAGER" +
+    "&origin_code_list[]=TRIPADVISOR";
 
 // Creating default header for la fourchette website
 let headersLaFourchette = {
-    'User-Agent':
-        '\\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.186 Safari/537.36\\"',
-    Cookie: '\\"datadome=AHrlqAAAAAMAd1qvq6TwyMEAXRqvwA==\\"'
+    'User-Agent': '\\"Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko\\"'
 };
 
-let j = 0;
-let nbRequest = 0;
-
+/**
+ * Process the whole batch of restaurants given by michelin
+ * @param batch
+ * @returns {Promise}
+ */
 async function processRestaurants(batch) {
     return new Promise(async function (resolve, reject) {
         let tabResult = [];
 
-        let nbUrls = 25;
+        let nbUrls = 100;
 
         // Process 100 by 100
         for (let i = 0; i < batch.length / nbUrls; i++) {
+            console.log("BATCH LAFOURCHETTE : " + i);
             await processBatch(batch.slice(i * nbUrls, (i + 1) * nbUrls))
                 .then(result => {
                     tabResult.push(result)
@@ -38,23 +45,7 @@ async function processRestaurants(batch) {
 }
 
 /**
- * Gets the html code of an url
- * @param restaurantUrl
- * @returns {Promise<any>}
- */
-function getHTML(restaurantUrl) {
-    return new Promise(function (resolve, reject) {
-        request(restaurantUrl, {headers: headersLaFourchette}, function (error, response, html) {
-            if (!error) {
-                resolve(html);
-                nbRequest++;
-            }
-        });
-    });
-}
-
-/**
- * Process the batch given by the michelin website
+ * Process a sub-batch given by our functions
  * @param batch
  * @returns {Promise<any>}
  */
@@ -66,51 +57,49 @@ async function processBatch(batch) {
             // Creating a promise for each url
             let promise = getFirstPage(batch[i])
                 .then(page => {
-                    console.log("Got first page");
                     /**
                      * Got the first page - lets extract first info from it
                      * This scope extracts the url of the restaurant we searched on lafourchette
                      * Calls the right function according to the number of elements on the page
                      */
-                    let $ = cheerio.load(page);
+                    let jsonPage = JSON.parse(page);
 
                     // Case where there is only one element
-                    if ($('.resultContainer ul').children('.resultItem').length === 1) {
-                        return getRestaurantUrl($('.resultContainer ul').children('.resultItem').html());
+                    if (jsonPage['pagination']['total'] === 1) {
+                        return jsonPage['items'][0];
+                    }
+                    else if (jsonPage['pagination']['total'] === 0) {
+                        throw "0 RESULT ERROR";
                     }
                     // Case where we got several elements
                     else {
-                        //console.log("NEED POSTAL CODE" + batch[i]['title']);
-                        j++;
+                        // Get postal code from michelin then select the right restaurant
                         return getPostalCode(batch[i])
                             .then(postalCode => {
-                                return selectRestaurantUrl(page, batch[i]['title'], postalCode, 0);
+                                // Selecting a restaurant thanks to its postal code
+                                return selectRestaurant(jsonPage["items"],
+                                    batch[i]['title'], postalCode, 0, jsonPage['pagination']['total'])
+                                    .then(restaurant => {
+                                        return restaurant;
+                                    });
                             });
                     }
                 })
-                .then(restaurantUrl => {
+                .then(restaurantJSON => {
                     /**
                      * Send a request to the restaurant url and load html
                      */
-                    //console.log(restaurantUrl);
-                    return getHTML(restaurantUrl);
-                })
-                .then(htmlRestaurant => {
-                    /**
-                     * Scrape the html of each restaurant and get relevant information
-                     */
-                    return getElementsFromHTML(htmlRestaurant);
+                    return getElementsFromJSON(restaurantJSON);
                 })
                 .catch(error => {
                     /**
                      * If we catch an error here, that means the restaurant name returns no result on la fourchettte
                      */
-                    //console.log(batch[i]);
                     return "ERROR";
                 });
             arrPromise.push(promise);
         }
-        //console.log("Promises created");
+
         Promise.all(arrPromise)
             .then(result => {
                 /*
@@ -130,40 +119,34 @@ async function processBatch(batch) {
 }
 
 /**
- * Removes unnecessary spaces on our string
- * @param str
- * @param joinChar
- * @returns {string}
+ * Gets elements from a restaurant's JSON
+ * @param restaurantJSON
  */
-function removeSpaces(str, joinChar) {
-    return str.split("\n").map(x => {
-        return x.trim();
-    }).slice(1, -1).join(joinChar);
-}
-
-/**
- * Extracts element from the html page
- * @param htmlPage
- * @returns {{title: jQuery, address: string, imageAddress: *|jQuery, phoneNumber: jQuery, avgPrice: string, ratingValue: string, reviewsCount: string, sale: jQuery, url: *|jQuery, tags: Array}}
- */
-function getElementsFromHTML(htmlPage) {
-    let $ = cheerio.load(htmlPage);
-    let tagsArr = [];
-    $('.restaurantTagContainer li').not('#restaurantTagExpand').each(function (i, elem) {
-        tagsArr.push($(this).text());
-    });
-
+function getElementsFromJSON(restaurantJSON) {
+    let imageUrl = "";
+    if (restaurantJSON['images']['main'] === undefined) {
+        // Undefined image url
+        imageUrl = "";
+    }
+    else {
+        imageUrl = restaurantJSON['images']['main'][restaurantJSON['images']['main'].length - 1]['url'];
+    }
     return {
-        "title": $('.restaurantSummary-name').text(),
-        "address": removeSpaces($('.restaurantSummary-address').text().toString(), " - "),
-        "imageAddress": $('.carousel-item').children().attr('src'),
-        "phoneNumber": $('.restaurantPhone-number').text(),
-        "avgPrice": removeSpaces($('.restaurantSummary-price').text().toString(), " ").trim(),
-        "ratingValue": removeSpaces($('#restaurantAvgRating .rating-ratingValue').text(), " "),
-        "reviewsCount": removeSpaces($('.reviewsCount').text(), " "),
-        "sale": $('.saleType').text(),
-        "url": $('meta[property="og:url"]').attr("content"),
-        "tags": tagsArr
+        "name": restaurantJSON['name'],
+        "address": {
+            "city": restaurantJSON['address']['address_locality'],
+            "postal_code": restaurantJSON['address']['postal_code'],
+            "street": restaurantJSON['address']['street_address']
+        },
+        "rating": restaurantJSON['aggregate_rating']['rating_value'],
+        "rating_count": restaurantJSON['aggregate_rating']['rating_count'],
+        "avg_price": restaurantJSON['average_price'],
+        "sale_title": restaurantJSON['sale_type']['title'],
+        "sale_menus": restaurantJSON['sale_type']['menus'],
+        "speciality": restaurantJSON['speciality'],
+        "img_url": imageUrl,
+        "tags": restaurantJSON['restaurant_tags_ids'],
+        "tripadvisor_rating": restaurantJSON['trip_advisor']
     };
 }
 
@@ -174,17 +157,18 @@ function getElementsFromHTML(htmlPage) {
  */
 async function getFirstPage(dictRestaurant) {
     return new Promise(function (resolve, reject) {
-        let baseUrl = encodeURI("https://m.lafourchette.com/fr_FR/search?offer=1&searchText=" + dictRestaurant["title"].toLowerCase());
+        // Creating url with the restaurants name and offset = 0
+        let baseUrl = encodeURI(baseLFURL
+            .replace("YOURSEARCHQUERYHERE", dictRestaurant["title"].toLowerCase().replace("&", ""))
+            .replace("YOUROFFSETHERE", "0"));
 
-        // followRedirect = false in order not to follow 302 redirection (in case the restaurant was not found
         request(baseUrl, {headers: headersLaFourchette, followRedirect: false}, function (error, response, html) {
-            nbRequest++;
             if (!error && response.statusCode === 200) {
                 // Got a response - resolving the promise and sending the page
                 resolve(html);
             }
             else if (!error) {
-                // Got no response (response code 302) - rejecting promise with the code error
+                // Got no response - rejecting promise with the code error
                 reject(response.statusCode);
             }
             else {
@@ -195,71 +179,54 @@ async function getFirstPage(dictRestaurant) {
 }
 
 /**
- * Function used when we got only one restaurant when searching from michelin
- * @param html
- * @returns {Promise<void>} The url of the restaurant on lafourchette
- */
-async function getRestaurantUrl(html) {
-    return new Promise(function (resolve, reject) {
-        let $ = cheerio.load(html);
-        resolve(baseLFURL + $('.resultItem-name').children().attr('href'));
-    });
-}
-
-/**
  * If we got multiple results, selecting the one which address contains our postalCode
- * @param myPage Page in which we need to find our result
+ * @param restaurantsJSON list of JSON string containing info about restaurants
  * @param name Name of the restaurant
  * @param postalCode Postal code of the restaurant
- * @param nbRedirection
+ * @param offset Offset parameter (index on which we search our element)
+ * @param maxOffset Number of elements returned by the research
  * @returns {Promise<void>} The url of the restaurant on lafourchette
  */
-async function selectRestaurantUrl(myPage, name, postalCode, nbRedirection) {
+async function selectRestaurant(restaurantsJSON, name, postalCode, offset, maxOffset) {
     return new Promise(function (resolve, reject) {
-        let $ = cheerio.load(myPage);
-        let restaurantUrl = "";
 
-        // Goes through the list of restaurants on the page and selects the right one
-        $('.resultContainer ul')
-            .children('.resultItem')
-            .each(function (i, link) {
-                /*
-                 * If the address of the restaurant on lafourchette contains our postal code
-                 * then setting the value of restaurantUrl to the url of this restaurant
-                 */
-                if ($(this).find(".resultItem-address").text().toString().includes(postalCode)) {
-                    // Getting the url of the restaurant
-                    restaurantUrl = baseLFURL + $(this)
-                        .find(".resultItem-name")
-                        .children()
-                        .attr("href");
+        // Variable to store the right restaurants infos
+        let myRestaurantJSONString = "";
 
-                    // Breaking each loop
-                    return false;
-                }
-            });
+        for (let i = 0; i < restaurantsJSON.length; i++) {
+            // Get the postal code of a restaurant and compare it with the one given by michelin
+            if (restaurantsJSON[i]['address']['postal_code'].toString() === postalCode) {
+                myRestaurantJSONString = restaurantsJSON[i];
+                break;
+            }
+        }
 
         // Resolving if we got a result
-        if (restaurantUrl !== "") {
-            resolve(restaurantUrl)
+        if (myRestaurantJSONString !== "") {
+            resolve(myRestaurantJSONString)
         }
         else {
             // If we cannot find any result then going to the next page if it exists, throwing error if not
-            if ($('.pagination .next a').length === 0 || nbRedirection === 3) {
+            if (offset + 10 >= maxOffset) {
                 reject("NOT FOUND");
+            }
+            else if (offset > 250) {
+                reject("TOO MANY RESTAURANTS");
             }
             else {
                 // Getting url and loading the page
-                let url = baseLFURL + $('.pagination .next a').attr("href");
+                let url = encodeURI(baseLFURL
+                    .replace("YOURSEARCHQUERYHERE", name)
+                    .replace("YOUROFFSETHERE", offset + 10));
 
                 // Sending a request to load the page and recursively calling this function to process the page
                 request(url, {headers: headersLaFourchette, followRedirect: false}, function (error, response, html) {
-                    nbRequest++;
                     if (!error) {
+                        let items = JSON.parse(html)['items'];
                         // Creating a recursive promise chain to resolve/reject the right element
-                        return selectRestaurantUrl(html, name, postalCode, nbRedirection + 1)
-                            .then(x => {
-                                resolve(x);
+                        return selectRestaurant(items, name, postalCode, offset + 10, maxOffset)
+                            .then(JSONRestaurant => {
+                                resolve(JSONRestaurant);
                             })
                             .catch(error => {
                                 reject(error);
@@ -289,9 +256,4 @@ async function getPostalCode(dictRestaurant) {
     });
 }
 
-exports.getFirstPage = getFirstPage;
-exports.getPostalCode = getPostalCode;
-exports.selectRestaurantUrl = selectRestaurantUrl;
-exports.getRestaurantUrl = getRestaurantUrl;
-exports.processBatch = processBatch;
 exports.processRestaurants = processRestaurants;

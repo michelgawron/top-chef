@@ -8,8 +8,7 @@ let cheerio = require('cheerio');
 let request = require('request');
 
 let headers = {
-    'User-Agent':
-        '\\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.186 Safari/537.36\\"',
+    'User-Agent': '\\"curl\\"',
     Cookie: '\\"has-js=1\\"'
 };
 
@@ -37,7 +36,7 @@ async function getRestaurants(url) {
                  * a base one
                  */
                 let myurl = "https://restaurant.michelin.fr/search-restaurants?" +
-                    "&cooking_type=&gm_selection=&stars=1||2||3&bib_gourmand=" +
+                    "&cooking_type=&gm_selection=&stars=&bib_gourmand=" +
                     "&piecette=&michelin_plate=&services=&ambiance=" +
                     "&booking_activated=&min_price=&max_price=" +
                     "&number_of_offers=&prev_localisation=1424&latitude=" +
@@ -111,7 +110,7 @@ async function getRestaurants(url) {
  * @returns {Promise<Array>}
  */
 function processBatch(batch) {
-    return new Promise(async (resolve, reject) => {
+    return new Promise(async(resolve, reject) => {
         let resultBatch = [];
         for (let i = 0; i < batch.length; i++) {
             await processURL(batch[i]).then(x => resultBatch.push(x));
